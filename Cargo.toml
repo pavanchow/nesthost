@@ -1,0 +1,18 @@
+[package]
+name = "nesthost"
+version = "0.1.0"
+edition = "2021"
+description = "A deterministic type-1 hypervisor simulator in pure std: vCPU scheduling, second-level address translation, and trap-and-emulate across guest VMs."
+license = "MIT"
+repository = "https://github.com/pavanchow/nesthost"
+
+[[bin]]
+name = "nesthost"
+path = "src/bin/nesthost.rs"
+
+[lib]
+name = "nesthost"
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = 3
