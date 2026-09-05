@@ -1,12 +1,635 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>nesthost</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nesthost Playground</title>
+<style>
+  :root {
+    --bg: #f5f5f7;
+    --panel: #ffffff;
+    --panel-2: #fbfbfd;
+    --text: #1d1d1f;
+    --muted: #6e6e73;
+    --line: #d2d2d7;
+    --accent: #0071e3;
+    --g0: #0071e3;
+    --g1: #34c759;
+    --g2: #ff9500;
+    --fault: #ff3b30;
+    --code-bg: #f0f0f3;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.05);
+    --radius: 16px;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Dark override MUST come after the base body rule and re-declare both the
+     variables and the body background, or dark Chrome shows dark text on white. */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --panel: #1c1c1e;
+      --panel-2: #161618;
+      --text: #f5f5f7;
+      --muted: #a1a1a6;
+      --line: #3a3a3c;
+      --accent: #2997ff;
+      --g0: #2997ff;
+      --g1: #30d158;
+      --g2: #ff9f0a;
+      --fault: #ff453a;
+      --code-bg: #2c2c2e;
+      --shadow: 0 1px 3px rgba(0,0,0,0.5), 0 8px 24px rgba(0,0,0,0.4);
+    }
+    body { background: var(--bg); color: var(--text); }
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 40px 20px 80px; }
+  header.hero { text-align: center; margin-bottom: 32px; }
+  h1 { font-size: 44px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 8px; }
+  .tagline { font-size: 21px; color: var(--muted); margin: 0 auto; max-width: 720px; }
+  .framing {
+    font-size: 14px; color: var(--muted); margin: 16px auto 0; max-width: 720px;
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 16px;
+  }
+  .repo-link { display: inline-block; margin-top: 16px; color: var(--accent); text-decoration: none; font-weight: 500; }
+  .repo-link:hover { text-decoration: underline; }
+
+  section.card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 24px; margin: 20px 0;
+  }
+  h2 { font-size: 24px; font-weight: 650; letter-spacing: -0.01em; margin: 0 0 4px; }
+  h2 .sub { font-size: 14px; color: var(--muted); font-weight: 400; margin-left: 10px; }
+  h3 { font-size: 16px; font-weight: 600; margin: 0 0 10px; }
+  p.note { color: var(--muted); font-size: 14px; margin: 6px 0 18px; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  button {
+    font-family: var(--sans); font-size: 15px; font-weight: 500;
+    padding: 10px 20px; border-radius: 980px; border: 1px solid transparent;
+    background: var(--accent); color: #fff; cursor: pointer; transition: opacity .15s, transform .05s;
+  }
+  button:hover { opacity: 0.9; }
+  button:active { transform: scale(0.97); }
+  button.secondary { background: transparent; color: var(--accent); border-color: var(--line); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .status { margin-left: auto; font-size: 14px; color: var(--muted); font-family: var(--mono); }
+
+  .guests { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .guest {
+    border: 1px solid var(--line); border-radius: 14px; padding: 16px; background: var(--panel-2);
+    transition: box-shadow .2s, border-color .2s;
+  }
+  .guest.active { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .guest .ghead { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+  .guest .gname { font-weight: 600; font-size: 15px; }
+  .badge { margin-left: auto; font-size: 12px; padding: 2px 10px; border-radius: 980px; background: var(--code-bg); color: var(--muted); font-family: var(--mono); }
+  .badge.halted { color: var(--g1); }
+  .badge.faulted { color: var(--fault); }
+  .regs { font-family: var(--mono); font-size: 12.5px; color: var(--muted); display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; margin-bottom: 10px; }
+  .regs b { color: var(--text); font-weight: 600; }
+  .console-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .console {
+    font-family: var(--mono); font-size: 14px; background: var(--code-bg); border-radius: 8px;
+    padding: 10px 12px; min-height: 42px; white-space: pre-wrap; word-break: break-all;
+  }
+  .console .caret { opacity: 0.4; }
+
+  .memmap { display: grid; gap: 18px; }
+  .hostframes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .frame {
+    font-family: var(--mono); font-size: 12px; border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; min-width: 84px; text-align: center; background: var(--panel-2);
+  }
+  .frame .owner { font-size: 11px; color: var(--muted); display: block; margin-top: 2px; }
+  .pt-tables { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+  .pt { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--panel-2); }
+  .pt h4 { margin: 0 0 8px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  table.map { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12.5px; }
+  table.map th { text-align: left; color: var(--muted); font-weight: 500; padding: 3px 4px; border-bottom: 1px solid var(--line); }
+  table.map td { padding: 3px 4px; }
+  .fault-row td { color: var(--fault); }
+
+  .timeline { display: flex; flex-wrap: wrap; gap: 4px; align-items: stretch; min-height: 40px; }
+  .slice {
+    font-family: var(--mono); font-size: 11px; color: #fff; border-radius: 6px;
+    padding: 6px 8px; display: flex; align-items: center; gap: 4px; opacity: 0.92;
+  }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+  .exitlog {
+    font-family: var(--mono); font-size: 12.5px; background: var(--code-bg); border-radius: 10px;
+    padding: 12px; max-height: 260px; overflow-y: auto;
+  }
+  .exitlog .row { padding: 3px 4px; border-radius: 4px; }
+  .exitlog .row.io { color: var(--accent); }
+  .exitlog .row.cr { color: var(--g1); }
+  .exitlog .row.halt { color: var(--muted); }
+  .exitlog .row.fault { color: var(--fault); font-weight: 600; }
+  .exitlog .row.latest { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .empty { color: var(--muted); font-style: italic; }
+
+  ol.howto { padding-left: 20px; margin: 0; }
+  ol.howto li { margin-bottom: 10px; }
+  ol.howto code, p code, td code { font-family: var(--mono); background: var(--code-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+  .tour { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; margin-top: 16px; }
+  .tour h3 { margin-top: 0; }
+  footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 40px; }
+  footer a { color: var(--accent); text-decoration: none; }
+</style>
 </head>
 <body>
-<h1>nesthost</h1>
-<p>Site coming soon.</p>
-<p><a href="https://github.com/pavanchow/nesthost">View repository</a></p>
+<div class="wrap">
+  <header class="hero">
+    <h1>Nesthost</h1>
+    <p class="tagline">A deterministic type-1 hypervisor simulator you can step through in the browser.</p>
+    <p class="framing">
+      This playground is a teaching accurate model, not a real VMM. There is no hardware, no ring
+      transition, and no host kernel. It shows the real shapes: guest physical to host physical
+      address translation, VM exits on privileged instructions, per guest isolation, and
+      deterministic round robin scheduling.
+    </p>
+    <a class="repo-link" href="https://github.com/pavanchow/nesthost">View the Rust source on GitHub &rsaquo;</a>
+  </header>
+
+  <section class="card">
+    <h2>Live machine <span class="sub">one physical CPU, three guest VMs, quantum of 3 instructions</span></h2>
+    <p class="note">Press Step to advance one guest instruction at a time, or Run to let it play out. The whole run is deterministic, so Reset then Run always produces the same schedule, the same exits, and the same output.</p>
+    <div class="controls">
+      <button id="btnStep">Step</button>
+      <button id="btnRun">Run</button>
+      <button id="btnPause" class="secondary" disabled>Pause</button>
+      <button id="btnReset" class="secondary">Reset</button>
+      <span class="status" id="status"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Guest VMs <span class="sub">each with its own vCPU, address space, and console</span></h2>
+    <p class="note">The highlighted card is the guest currently holding the physical CPU. Two guests print a short string. The third, "rogue", tries to read outside its mapped memory.</p>
+    <div class="guests" id="guests"></div>
+  </section>
+
+  <section class="card">
+    <h2>Memory map <span class="sub">guest physical (GPA) to host physical (HPA)</span></h2>
+    <p class="note">Host physical memory is a shared pool of frames. Each guest's page table maps its own guest pages to a disjoint set of host frames, so no guest can name another guest's memory. An access to an unmapped guest page faults instead of reaching some other frame.</p>
+    <div class="memmap">
+      <div>
+        <h3>Host physical frames (who owns each)</h3>
+        <div class="hostframes" id="hostframes"></div>
+      </div>
+      <div>
+        <h3>Per guest page tables</h3>
+        <div class="pt-tables" id="pttables"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>vCPU schedule timeline <span class="sub">deterministic round robin</span></h2>
+    <p class="note">Each block is one time slice: the hypervisor entered a guest and let it run until the quantum, a halt, or a fault. Blocks appear in the order the scheduler ran them.</p>
+    <div class="timeline" id="timeline"><span class="empty">No slices yet. Press Step or Run.</span></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="card">
+    <h2>VM exit log <span class="sub">trap and emulate</span></h2>
+    <p class="note">Every privileged instruction traps here. A console write is a device IO exit, a control register write is a SetCr exit, and reaching unmapped memory is a fault exit. The hypervisor emulates each one, then resumes the guest.</p>
+    <div class="exitlog" id="exitlog"><span class="empty">No exits yet.</span></div>
+  </section>
+
+  <section class="card">
+    <h2>How to use this playground</h2>
+    <ol class="howto">
+      <li><b>Step</b> runs exactly one guest instruction. Watch the active guest card, its registers, and the exit log. When a guest hits <code>Out</code>, a device IO exit appears and one character lands on that guest's console.</li>
+      <li><b>Run</b> plays steps automatically. <b>Pause</b> stops the playback where it is, and <b>Step</b> still works while paused.</li>
+      <li><b>Reset</b> rebuilds the machine from scratch. Because everything is deterministic, a fresh Reset then Run reproduces the identical schedule, exits, and output every time.</li>
+      <li>In the <b>Memory map</b>, notice each host frame is owned by exactly one guest, and the page tables never overlap. That disjointness is what keeps guests isolated.</li>
+      <li>Watch the <b>rogue</b> guest. It writes safely inside its own page, then reads guest address <code>9999</code>, which it has no mapping for. That produces a fault exit in red and stops the guest. It never sees another guest's data.</li>
+    </ol>
+    <div class="tour">
+      <h3>A two minute guided tour</h3>
+      <ol class="howto">
+        <li>Press <b>Reset</b>, then <b>Step</b> a few times. The first guest sets a register, then traps on <code>Out</code>, and a letter appears on its console.</li>
+        <li>Keep stepping. After the quantum the timeline shows the slice ending and the next guest gets the CPU. This is the round robin.</li>
+        <li>When the rogue guest runs, its out of bounds read turns into a red fault in the exit log and its state badge flips to faulted.</li>
+        <li>Press <b>Run</b> to finish. Compare the two printing guests' consoles. They built their strings independently, in isolated memory, while sharing one CPU.</li>
+        <li>Press <b>Reset</b> and <b>Run</b> again. Identical result. That is the determinism gate in action.</li>
+      </ol>
+    </div>
+  </section>
+
+  <footer>
+    Nesthost is open source. <a href="https://github.com/pavanchow/nesthost">github.com/pavanchow/nesthost</a>
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+// ---- Engine (teaching reimplementation of the Rust core) ----
+const PAGE_WORDS = 16;
+
+function makePageTable() {
+  const entries = new Map(); // gpn -> {hfn, r, w}
+  return {
+    entries,
+    map(gpn, hfn, r, w) { entries.set(gpn, { hfn, r, w }); },
+    translate(gpa, write) {
+      const gpn = Math.floor(gpa / PAGE_WORDS);
+      const off = gpa % PAGE_WORDS;
+      const pte = entries.get(gpn);
+      if (!pte) return { fault: "unmapped" };
+      if (write && !pte.w) return { fault: "protection" };
+      if (!write && !pte.r) return { fault: "protection" };
+      return { hfn: pte.hfn, off };
+    }
+  };
+}
+
+function makeHostMemory(frameCount) {
+  const frames = [];
+  for (let i = 0; i < frameCount; i++) frames.push(new Array(PAGE_WORDS).fill(0));
+  let nextFree = 0;
+  return {
+    frameCount,
+    alloc() { if (nextFree >= frameCount) throw new Error("out of frames"); return nextFree++; },
+    read(hfn, off) { return frames[hfn][off]; },
+    write(hfn, off, v) { frames[hfn][off] = v; }
+  };
+}
+
+function makeVCpu() {
+  return { regs: new Array(8).fill(0), pc: 0, halted: false, cr: [0,0,0,0], retired: 0 };
+}
+
+// Instruction helpers.
+const I = {
+  movi: (rd, imm) => ({ op: "movi", rd, imm }),
+  store: (rd, rs) => ({ op: "store", rd, rs }),
+  load: (rd, rs) => ({ op: "load", rd, rs }),
+  addi: (rd, rs, imm) => ({ op: "addi", rd, rs, imm }),
+  jz: (rs, t) => ({ op: "jz", rs, t }),
+  jmp: (t) => ({ op: "jmp", t }),
+  out: (port, rs) => ({ op: "out", port, rs }),
+  setcr: (cr, rs) => ({ op: "setcr", cr, rs }),
+  halt: () => ({ op: "halt" })
+};
+
+function isPrivileged(instr) { return instr.op === "out" || instr.op === "setcr"; }
+
+function step(vcpu, program, pt, mem) {
+  if (vcpu.halted) return { exit: { kind: "halt" } };
+  const instr = program[vcpu.pc];
+  if (instr === undefined) { vcpu.halted = true; return { exit: { kind: "end" } }; }
+
+  if (isPrivileged(instr)) {
+    vcpu.pc += 1;
+    if (instr.op === "out") return { exit: { kind: "io", port: instr.port, value: vcpu.regs[instr.rs] } };
+    return { exit: { kind: "cr", cr: instr.cr, value: vcpu.regs[instr.rs] } };
+  }
+
+  vcpu.pc += 1;
+  switch (instr.op) {
+    case "movi": vcpu.regs[instr.rd] = instr.imm; break;
+    case "addi": vcpu.regs[instr.rd] = vcpu.regs[instr.rs] + instr.imm; break;
+    case "load": {
+      const gpa = vcpu.regs[instr.rs];
+      const t = pt.translate(gpa, false);
+      if (t.fault) { vcpu.pc -= 1; return { exit: { kind: "fault", gpa, access: "read", why: t.fault } }; }
+      vcpu.regs[instr.rd] = mem.read(t.hfn, t.off);
+      break;
+    }
+    case "store": {
+      const gpa = vcpu.regs[instr.rd];
+      const t = pt.translate(gpa, true);
+      if (t.fault) { vcpu.pc -= 1; return { exit: { kind: "fault", gpa, access: "write", why: t.fault } }; }
+      mem.write(t.hfn, t.off, vcpu.regs[instr.rs]);
+      break;
+    }
+    case "jz": if (vcpu.regs[instr.rs] === 0) vcpu.pc = instr.t; break;
+    case "jmp": vcpu.pc = instr.t; break;
+    case "halt": vcpu.pc -= 1; vcpu.halted = true; return { exit: { kind: "halt" } };
+    default: throw new Error("bad op " + instr.op);
+  }
+  vcpu.retired += 1;
+  return { continue: true };
+}
+
+// Build a program that writes text into its own memory then prints it.
+function printProgram(text) {
+  const prog = [];
+  for (let i = 0; i < text.length; i++) {
+    prog.push(I.movi(0, text.charCodeAt(i)));
+    prog.push(I.movi(1, i));
+    prog.push(I.store(1, 0));
+  }
+  prog.push(I.movi(1, 0));
+  const loopStart = prog.length;
+  prog.push(I.load(0, 1));
+  const jzIndex = prog.length;
+  prog.push(I.jz(0, 0));
+  prog.push(I.out(0, 0));
+  prog.push(I.addi(1, 1, 1));
+  prog.push(I.jmp(loopStart));
+  const end = prog.length;
+  prog.push(I.halt());
+  prog[jzIndex] = I.jz(0, end);
+  return prog;
+}
+
+function outOfBoundsProgram() {
+  return [
+    I.movi(0, 42),
+    I.movi(1, 4),
+    I.store(1, 0),   // legal write inside its own page
+    I.movi(1, 9999), // an address in an unmapped page
+    I.load(0, 1),    // faults here, leaks nothing
+    I.halt()
+  ];
+}
+
+const GUEST_DEFS = [
+  { name: "hello", color: "--g0", program: printProgram("Hi!"), pages: 2 },
+  { name: "world", color: "--g1", program: printProgram("OS"), pages: 2 },
+  { name: "rogue", color: "--g2", program: outOfBoundsProgram(), pages: 1 }
+];
+
+function buildMachine() {
+  const totalPages = GUEST_DEFS.reduce((a, g) => a + g.pages, 0);
+  const mem = makeHostMemory(totalPages + 2);
+  const guests = GUEST_DEFS.map((def, id) => {
+    const pt = makePageTable();
+    const frames = [];
+    for (let gpn = 0; gpn < def.pages; gpn++) {
+      const hfn = mem.alloc();
+      frames.push(hfn);
+      pt.map(gpn, hfn, true, true);
+    }
+    return {
+      id, name: def.name, color: def.color, program: def.program, pt, frames,
+      vcpu: makeVCpu(), console: [], state: "running", ioExits: 0, faultExits: 0
+    };
+  });
+  return {
+    mem, guests, quantum: 3,
+    exits: [], schedule: [], tick: 0, entries: 0,
+    sliceGuest: null, sliceRan: 0, entryTick: 0, nextPtr: 0, done: false
+  };
+}
+
+function pickNext(m) {
+  const n = m.guests.length;
+  for (let k = 0; k < n; k++) {
+    const idx = (m.nextPtr + k) % n;
+    if (m.guests[idx].state === "running") return idx;
+  }
+  return -1;
+}
+
+function endSlice(m) {
+  m.schedule.push({ tick: m.entryTick, guestId: m.sliceGuest, ran: m.sliceRan });
+  m.nextPtr = (m.sliceGuest + 1) % m.guests.length;
+  m.sliceGuest = null;
+}
+
+// Advance one instruction. Returns the event, or null when the machine is done.
+function machineStep(m) {
+  if (m.done) return null;
+  if (m.sliceGuest === null) {
+    const idx = pickNext(m);
+    if (idx < 0) { m.done = true; return null; }
+    m.sliceGuest = idx;
+    m.sliceRan = 0;
+    m.entryTick = m.tick;
+    m.entries += 1;
+  }
+  const g = m.guests[m.sliceGuest];
+  const pcBefore = g.vcpu.pc;
+  const res = step(g.vcpu, g.program, g.pt, m.mem);
+  const ev = { guestId: m.sliceGuest, pc: pcBefore };
+
+  if (res.continue) {
+    m.sliceRan += 1;
+    ev.type = "exec";
+    if (m.sliceRan >= m.quantum) endSlice(m);
+    return ev;
+  }
+
+  // A VM exit.
+  m.tick += 1;
+  const reason = res.exit;
+  m.exits.push({ tick: m.tick, guestId: g.id, pc: pcBefore, reason });
+  ev.type = "exit";
+  ev.reason = reason;
+  switch (reason.kind) {
+    case "io": g.console.push(reason.value & 0xff); g.ioExits += 1;
+      if (m.sliceRan >= m.quantum) endSlice(m); break;
+    case "cr": g.vcpu.cr[reason.cr % 4] = reason.value;
+      if (m.sliceRan >= m.quantum) endSlice(m); break;
+    case "halt": case "end": g.state = "halted"; endSlice(m); break;
+    case "fault": g.faultExits += 1; g.state = "faulted"; endSlice(m); break;
+  }
+  return ev;
+}
+
+// ---- Rendering ----
+let machine = buildMachine();
+let timer = null;
+
+const $ = (id) => document.getElementById(id);
+
+function cssColor(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+function renderGuests() {
+  const host = $("guests");
+  host.innerHTML = "";
+  for (const g of machine.guests) {
+    const active = machine.sliceGuest === g.id && !machine.done;
+    const card = document.createElement("div");
+    card.className = "guest" + (active ? " active" : "");
+    const badgeClass = g.state === "halted" ? "halted" : g.state === "faulted" ? "faulted" : "";
+    const text = g.console.map(b => String.fromCharCode(b)).join("");
+    card.innerHTML =
+      '<div class="ghead">' +
+        '<span class="dot" style="background:var(' + g.color + ')"></span>' +
+        '<span class="gname">guest ' + g.id + ' &middot; ' + g.name + '</span>' +
+        '<span class="badge ' + badgeClass + '">' + g.state + '</span>' +
+      '</div>' +
+      '<div class="regs">' +
+        '<span>r0 <b>' + g.vcpu.regs[0] + '</b></span>' +
+        '<span>r1 <b>' + g.vcpu.regs[1] + '</b></span>' +
+        '<span>pc <b>' + g.vcpu.pc + '</b></span>' +
+        '<span>retired <b>' + g.vcpu.retired + '</b></span>' +
+      '</div>' +
+      '<div class="console-label">console (' + g.ioExits + ' writes)</div>' +
+      '<div class="console">' + escapeHtml(text) + '<span class="caret">&#9601;</span></div>';
+    host.appendChild(card);
+  }
+}
+
+function renderMemoryMap() {
+  const frames = $("hostframes");
+  frames.innerHTML = "";
+  const ownerOf = {};
+  for (const g of machine.guests) for (const hfn of g.frames) ownerOf[hfn] = g;
+  for (let hfn = 0; hfn < machine.mem.frameCount; hfn++) {
+    const owner = ownerOf[hfn];
+    const box = document.createElement("div");
+    box.className = "frame";
+    if (owner) {
+      box.style.borderColor = "var(" + owner.color + ")";
+      box.innerHTML = "hfn " + hfn + '<span class="owner" style="color:var(' + owner.color + ')">guest ' + owner.id + " " + owner.name + "</span>";
+    } else {
+      box.innerHTML = "hfn " + hfn + '<span class="owner">free</span>';
+    }
+    frames.appendChild(box);
+  }
+
+  const tables = $("pttables");
+  tables.innerHTML = "";
+  for (const g of machine.guests) {
+    const div = document.createElement("div");
+    div.className = "pt";
+    let rows = "";
+    const gpns = [...g.pt.entries.keys()].sort((a, b) => a - b);
+    for (const gpn of gpns) {
+      const pte = g.pt.entries.get(gpn);
+      rows += "<tr><td>" + gpn + "</td><td>&rarr; " + pte.hfn + "</td><td>[" + (pte.r ? "r" : "-") + (pte.w ? "w" : "-") + "]</td></tr>";
+    }
+    if (g.name === "rogue") {
+      rows += '<tr class="fault-row"><td>624</td><td>&rarr; &#10007;</td><td>gpa 9999, unmapped</td></tr>';
+    }
+    div.innerHTML =
+      "<h4><span class='dot' style='width:10px;height:10px;background:var(" + g.color + ")'></span>guest " + g.id + " &middot; " + g.name + "</h4>" +
+      '<table class="map"><thead><tr><th>gpn</th><th>hfn</th><th>perm</th></tr></thead><tbody>' + rows + "</tbody></table>";
+    tables.appendChild(div);
+  }
+}
+
+function renderTimeline() {
+  const tl = $("timeline");
+  if (machine.schedule.length === 0) {
+    tl.innerHTML = '<span class="empty">No slices yet. Press Step or Run.</span>';
+  } else {
+    tl.innerHTML = "";
+    machine.schedule.forEach((s) => {
+      const g = machine.guests[s.guestId];
+      const b = document.createElement("div");
+      b.className = "slice";
+      b.style.background = "var(" + g.color + ")";
+      b.textContent = g.name + " ×" + s.ran;
+      b.title = "guest " + g.id + " ran " + s.ran + " instructions";
+      tl.appendChild(b);
+    });
+  }
+  const legend = $("legend");
+  legend.innerHTML = "";
+  for (const g of machine.guests) {
+    const s = document.createElement("span");
+    s.innerHTML = "<span class='dot' style='background:var(" + g.color + ")'></span>" + g.name;
+    legend.appendChild(s);
+  }
+}
+
+function reasonText(r) {
+  switch (r.kind) {
+    case "io": return "DeviceIo  port " + r.port + "  value " + r.value + " ('" + printable(r.value) + "')";
+    case "cr": return "SetCr  cr" + r.cr + "  value " + r.value;
+    case "halt": return "Halt";
+    case "end": return "EndOfProgram";
+    case "fault": return "MemFault  gpa " + r.gpa + "  " + r.access + "  " + r.why;
+    default: return r.kind;
+  }
+}
+
+function reasonClass(r) {
+  if (r.kind === "io") return "io";
+  if (r.kind === "cr") return "cr";
+  if (r.kind === "fault") return "fault";
+  return "halt";
+}
+
+function renderExitLog() {
+  const log = $("exitlog");
+  if (machine.exits.length === 0) { log.innerHTML = '<span class="empty">No exits yet.</span>'; return; }
+  log.innerHTML = "";
+  machine.exits.forEach((e, i) => {
+    const g = machine.guests[e.guestId];
+    const row = document.createElement("div");
+    row.className = "row " + reasonClass(e.reason) + (i === machine.exits.length - 1 ? " latest" : "");
+    row.textContent = "tick " + String(e.tick).padStart(2, "0") + "  guest " + e.guestId + " " + g.name + "  pc " + String(e.pc).padStart(2, "0") + "  " + reasonText(e.reason);
+    log.appendChild(row);
+  });
+  log.scrollTop = log.scrollHeight;
+}
+
+function renderStatus() {
+  const s = machine.done ? "halted" : (timer ? "running" : "ready");
+  $("status").textContent = "entries " + machine.entries + " · exits " + machine.exits.length + " · " + s;
+  $("btnStep").disabled = machine.done;
+  $("btnRun").disabled = machine.done || !!timer;
+  $("btnPause").disabled = !timer;
+}
+
+function renderAll() {
+  renderGuests();
+  renderMemoryMap();
+  renderTimeline();
+  renderExitLog();
+  renderStatus();
+}
+
+function printable(v) {
+  const c = v & 0xff;
+  return (c >= 32 && c < 127) ? String.fromCharCode(c) : ".";
+}
+function escapeHtml(s) {
+  return s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+}
+
+function doStep() {
+  const ev = machineStep(machine);
+  renderAll();
+  return ev !== null;
+}
+
+function doRun() {
+  if (timer) return;
+  timer = setInterval(() => {
+    const alive = doStep();
+    if (!alive) doPause();
+  }, 220);
+  renderStatus();
+}
+function doPause() {
+  if (timer) { clearInterval(timer); timer = null; }
+  renderStatus();
+}
+function doReset() {
+  doPause();
+  machine = buildMachine();
+  renderAll();
+}
+
+$("btnStep").addEventListener("click", () => { doPause(); doStep(); });
+$("btnRun").addEventListener("click", doRun);
+$("btnPause").addEventListener("click", doPause);
+$("btnReset").addEventListener("click", doReset);
+
+renderAll();
+</script>
 </body>
 </html>
