@@ -17,6 +17,9 @@ use crate::mem::{HostMemory, PageTable, PhysFault};
 /// Number of general purpose registers.
 pub const NUM_REGS: usize = 8;
 
+/// Number of shadow control registers.
+pub const CR_COUNT: usize = 4;
+
 /// A register index, `r0` through `r7`.
 pub type Reg = usize;
 
@@ -60,6 +63,28 @@ impl Instr {
     pub fn is_privileged(self) -> bool {
         matches!(self, Instr::Out(..) | Instr::SetCr(..))
     }
+
+    /// Whether every register and control register operand this instruction
+    /// names is architecturally in range. A malformed guest image that encodes
+    /// an out of range operand must not be able to index host state, so the vCPU
+    /// treats it as an invalid operation fault rather than executing it.
+    #[must_use]
+    pub fn operands_in_range(self) -> bool {
+        let reg_ok = |r: Reg| r < NUM_REGS;
+        match self {
+            Instr::Movi(rd, _) => reg_ok(rd),
+            Instr::Mov(rd, rs)
+            | Instr::Addi(rd, rs, _)
+            | Instr::Load(rd, rs)
+            | Instr::Store(rd, rs) => reg_ok(rd) && reg_ok(rs),
+            Instr::Add(rd, rs, rt) | Instr::Sub(rd, rs, rt) => {
+                reg_ok(rd) && reg_ok(rs) && reg_ok(rt)
+            }
+            Instr::Jz(rs, _) | Instr::Out(_, rs) => reg_ok(rs),
+            Instr::SetCr(cr, rs) => (cr as usize) < CR_COUNT && reg_ok(rs),
+            Instr::Jmp(_) | Instr::Halt => true,
+        }
+    }
 }
 
 /// The direction of a faulting memory access.
@@ -98,6 +123,10 @@ pub enum ExitReason {
     SetControlReg { cr: u8, value: u64 },
     /// A guest physical memory access could not be completed.
     MemFault { gpa: u64, access: MemAccess, kind: FaultKind },
+    /// The guest tried to execute an instruction whose operands are out of
+    /// architectural range (a malformed guest image). The equivalent of an
+    /// invalid opcode fault. Nothing is executed in guest context.
+    InvalidOp { pc: usize },
 }
 
 /// The result of stepping a vCPU once.
@@ -117,7 +146,7 @@ pub struct VCpu {
     pub halted: bool,
     /// Shadow control registers, written only by the hypervisor when emulating a
     /// [`Instr::SetCr`] exit. The guest can never write these directly.
-    pub cr: [u64; 4],
+    pub cr: [u64; CR_COUNT],
     /// Count of instructions retired in guest context (excludes trapped ones).
     pub retired: u64,
 }
@@ -136,7 +165,7 @@ impl VCpu {
             regs: [0; NUM_REGS],
             pc: 0,
             halted: false,
-            cr: [0; 4],
+            cr: [0; CR_COUNT],
             retired: 0,
         }
     }
@@ -167,6 +196,13 @@ impl VCpu {
             self.halted = true;
             return StepResult::Exit(ExitReason::EndOfProgram);
         };
+
+        // A malformed instruction is rejected before any operand is used, so an
+        // out of range register or control register index can never index host
+        // state. pc is left on the faulting instruction, as for a memory fault.
+        if !instr.operands_in_range() {
+            return StepResult::Exit(ExitReason::InvalidOp { pc: self.pc });
+        }
 
         // A privileged instruction never executes in guest context. Leave the pc
         // pointing at the next instruction so the hypervisor resumes cleanly, and

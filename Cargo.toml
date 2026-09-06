@@ -16,3 +16,9 @@ path = "src/lib.rs"
 
 [profile.release]
 opt-level = 3
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Address and frame indices are word counts bounded far below usize on the
+# 64-bit targets this simulator runs on, so the index casts are intentional.
+cast_possible_truncation = "allow"

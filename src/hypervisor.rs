@@ -9,8 +9,13 @@
 //! emulate unbypassable.
 
 use crate::cpu::{ExitReason, Instr, StepResult};
+use crate::device::{SharedRing, RING_DOORBELL_PORT};
 use crate::guest::{Guest, GuestState};
 use crate::mem::{HostMemory, PageTable, Perm};
+
+/// Upper bound on payload words retained per shared ring, so a guest cannot grow
+/// host memory without bound by ringing the doorbell in a loop.
+pub const RING_MAX_KEEP: usize = 4096;
 
 /// One serviced VM exit, recorded for inspection and for the determinism gate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,6 +35,11 @@ pub struct ScheduleTick {
     pub instructions_run: u64,
 }
 
+/// The default cap on scheduler rounds. Well behaved guests finish in a handful
+/// of rounds; the cap only exists so a non terminating guest cannot hang the
+/// host. It is deliberately large so it never truncates a legitimate workload.
+pub const DEFAULT_MAX_ROUNDS: u64 = 1_000_000;
+
 /// The hypervisor and the machine it runs.
 #[derive(Debug)]
 pub struct Hypervisor {
@@ -38,6 +48,12 @@ pub struct Hypervisor {
     pub quantum: u64,
     pub exits: Vec<ExitRecord>,
     pub schedule: Vec<ScheduleTick>,
+    /// Shared memory rings, at most one per guest, drained on the doorbell trap.
+    pub rings: Vec<SharedRing>,
+    /// Upper bound on scheduler rounds a single `run` will perform, so a guest
+    /// that never halts cannot spin the host forever.
+    max_rounds: u64,
+    budget_exhausted: bool,
     tick: u64,
     vm_entries: u64,
 }
@@ -57,9 +73,30 @@ impl Hypervisor {
             quantum,
             exits: Vec::new(),
             schedule: Vec::new(),
+            rings: Vec::new(),
+            max_rounds: DEFAULT_MAX_ROUNDS,
+            budget_exhausted: false,
             tick: 0,
             vm_entries: 0,
         }
+    }
+
+    /// Set the scheduler round budget. A `run` that reaches it stops early and
+    /// leaves any still runnable guests in place, with [`Self::budget_exhausted`]
+    /// set. Used to bound adversarial or non terminating guests.
+    ///
+    /// # Panics
+    /// Panics if `max_rounds` is zero.
+    pub fn set_max_rounds(&mut self, max_rounds: u64) {
+        assert!(max_rounds > 0, "max_rounds must be non zero");
+        self.max_rounds = max_rounds;
+    }
+
+    /// Whether the last `run` stopped because it hit the round budget rather than
+    /// because every guest became non runnable.
+    #[must_use]
+    pub fn budget_exhausted(&self) -> bool {
+        self.budget_exhausted
     }
 
     /// Create and register a guest whose guest physical space is `pages` pages,
@@ -94,6 +131,29 @@ impl Hypervisor {
     /// Panics if `guest_id` is out of range.
     pub fn share_frame(&mut self, guest_id: u32, gpn: u64, hfn: u64, perm: Perm) {
         self.guests[guest_id as usize].page_table.map(gpn, hfn, perm);
+    }
+
+    /// Attach a virtio style shared ring to guest `guest_id`, mapped read write at
+    /// guest page `gpn`. Returns the host frame backing the ring.
+    ///
+    /// The frame is freshly allocated, so it is disjoint from every other guest's
+    /// private frames. It is deliberately shared between exactly this guest and
+    /// the host, and no other guest maps it, which is what keeps the shared frame
+    /// from becoming an inter guest leak.
+    ///
+    /// # Panics
+    /// Panics if `guest_id` is out of range or host memory is exhausted.
+    pub fn attach_ring(&mut self, guest_id: u32, gpn: u64) -> u64 {
+        let hfn = self.host_mem.alloc_frame();
+        self.guests[guest_id as usize].page_table.map(gpn, hfn, Perm::rw());
+        self.rings.push(SharedRing::new(guest_id, hfn, gpn));
+        hfn
+    }
+
+    /// The shared ring bound to guest `id`, if one was attached.
+    #[must_use]
+    pub fn ring(&self, guest_id: u32) -> Option<&SharedRing> {
+        self.rings.iter().find(|r| r.guest_id == guest_id)
     }
 
     /// Total VM entries performed (one per scheduler slice actually run).
@@ -136,19 +196,31 @@ impl Hypervisor {
                         reason,
                     });
                     match reason {
-                        ExitReason::DeviceIo { value, .. } => {
-                            guest.console.write(value);
+                        ExitReason::DeviceIo { port, value } => {
+                            if port == RING_DOORBELL_PORT {
+                                // The doorbell is emulated entirely on the host
+                                // side: read the guest's shared ring frame and
+                                // drain any newly published entries.
+                                let gid = guest.id;
+                                if let Some(r) = self.rings.iter_mut().find(|r| r.guest_id == gid) {
+                                    r.drain(&mut self.host_mem, RING_MAX_KEEP);
+                                }
+                            } else {
+                                guest.console.write(value);
+                            }
                             guest.io_exits += 1;
                         }
                         ExitReason::SetControlReg { cr, value } => {
-                            guest.vcpu.cr[cr as usize % guest.vcpu.cr.len()] = value;
+                            // The vCPU already rejected an out of range cr index
+                            // as an InvalidOp, so this index is always valid.
+                            guest.vcpu.cr[cr as usize] = value;
                             guest.cr_exits += 1;
                         }
                         ExitReason::Halt | ExitReason::EndOfProgram => {
                             guest.state = GuestState::Halted;
                             break;
                         }
-                        ExitReason::MemFault { .. } => {
+                        ExitReason::MemFault { .. } | ExitReason::InvalidOp { .. } => {
                             guest.fault_exits += 1;
                             guest.state = GuestState::Faulted;
                             break;
@@ -169,6 +241,7 @@ impl Hypervisor {
     /// Run all guests to completion with the deterministic round robin. Returns
     /// the number of scheduler rounds performed.
     pub fn run(&mut self) -> u64 {
+        self.budget_exhausted = false;
         let mut rounds = 0u64;
         loop {
             let mut any_runnable = false;
@@ -182,6 +255,12 @@ impl Hypervisor {
                 break;
             }
             rounds += 1;
+            if rounds >= self.max_rounds {
+                // A guest (or several) is still runnable but has consumed the
+                // whole budget. Stop rather than spin the host forever.
+                self.budget_exhausted = true;
+                break;
+            }
         }
         rounds
     }
@@ -199,18 +278,17 @@ impl Hypervisor {
     /// mappings with permissions.
     #[must_use]
     pub fn memory_map(&self) -> String {
+        use std::fmt::Write as _;
         let mut out = String::new();
         for g in &self.guests {
-            out.push_str(&format!("guest {} \"{}\" GPA -> HPA\n", g.id, g.name));
+            let _ = writeln!(out, "guest {} \"{}\" GPA -> HPA", g.id, g.name);
             for (gpn, hfn, perm) in g.page_table.iter() {
                 let mode = match (perm.read, perm.write) {
                     (true, true) => "rw",
                     (true, false) => "ro",
                     _ => "--",
                 };
-                out.push_str(&format!(
-                    "  gpn {gpn:>3} -> hfn {hfn:>3}  [{mode}]\n"
-                ));
+                let _ = writeln!(out, "  gpn {gpn:>3} -> hfn {hfn:>3}  [{mode}]");
             }
         }
         out

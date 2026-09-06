@@ -24,9 +24,11 @@ pub mod hypervisor;
 pub mod mem;
 pub mod rng;
 
-pub use cpu::{ExitReason, FaultKind, Instr, MemAccess, StepResult, VCpu, NUM_REGS};
-pub use device::VirtualConsole;
+pub use cpu::{ExitReason, FaultKind, Instr, MemAccess, StepResult, VCpu, CR_COUNT, NUM_REGS};
+pub use device::{SharedRing, VirtualConsole, RING_DOORBELL_PORT};
 pub use guest::{Guest, GuestState};
-pub use hypervisor::{ExitRecord, Hypervisor, ScheduleTick};
+pub use hypervisor::{
+    ExitRecord, Hypervisor, ScheduleTick, DEFAULT_MAX_ROUNDS, RING_MAX_KEEP,
+};
 pub use mem::{HostMemory, PageTable, Perm, PhysFault, PAGE_WORDS};
 pub use rng::Rng;

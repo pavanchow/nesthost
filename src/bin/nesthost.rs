@@ -8,8 +8,9 @@
 //!   nesthost --help    show this help
 
 use nesthost::cpu::Instr;
+use nesthost::device::{SharedRing, RING_DOORBELL_PORT};
 use nesthost::hypervisor::Hypervisor;
-use nesthost::mem::Perm;
+use nesthost::mem::{Perm, PAGE_WORDS};
 
 /// Build a program that writes `text` into the guest's own physical memory, then
 /// reads it back byte by byte and prints each byte through the privileged device
@@ -52,6 +53,28 @@ fn out_of_bounds_program() -> Vec<Instr> {
     ]
 }
 
+/// Build a guest that publishes `text` into its shared ring frame (mapped at
+/// guest page 1) and rings the doorbell so the host drains it through trap and
+/// emulate. Registers used: r0 value, r1 pointer.
+fn ring_program(text: &str) -> Vec<Instr> {
+    let base = PAGE_WORDS; // the ring frame is mapped at guest page 1
+    let mut prog = Vec::new();
+    for (i, byte) in text.bytes().enumerate() {
+        prog.push(Instr::Movi(0, u64::from(byte)));
+        prog.push(Instr::Movi(1, base + SharedRing::FIRST_SLOT + i as u64));
+        prog.push(Instr::Store(1, 0));
+    }
+    // Publish: head = number of entries.
+    prog.push(Instr::Movi(0, text.len() as u64));
+    prog.push(Instr::Movi(1, base + SharedRing::HEAD));
+    prog.push(Instr::Store(1, 0));
+    // Ring the doorbell (privileged, traps to the host).
+    prog.push(Instr::Movi(0, 0));
+    prog.push(Instr::Out(RING_DOORBELL_PORT, 0));
+    prog.push(Instr::Halt);
+    prog
+}
+
 fn print_exit_log(hv: &Hypervisor) {
     println!("VM exit log (trap and emulate):");
     for e in &hv.exits {
@@ -81,6 +104,10 @@ fn run_demo() {
     hv.add_guest("hello", print_program("Hello"), 2, Perm::rw());
     hv.add_guest("world", print_program("world!"), 2, Perm::rw());
     hv.add_guest("rogue", out_of_bounds_program(), 1, Perm::rw());
+    // A guest that talks to the host over a shared memory ring. It owns one
+    // private page and one page granted as the shared ring frame.
+    let ringer = hv.add_guest("ringer", ring_program("ring!"), 1, Perm::rw());
+    hv.attach_ring(ringer, 1);
 
     println!("== Nesthost: deterministic type-1 hypervisor simulator ==\n");
     println!("Booting {} guests on 1 physical CPU.\n", hv.guests.len());
@@ -109,6 +136,17 @@ fn run_demo() {
         );
     }
     println!();
+
+    if let Some(ring) = hv.ring(ringer) {
+        println!("Shared ring device (guest to host, via doorbell trap):");
+        println!(
+            "  guest {} drained {} entries, host received: {:?}",
+            ring.guest_id,
+            ring.received().len(),
+            ring.received_string()
+        );
+        println!();
+    }
 
     println!(
         "Totals: {} scheduler rounds, {} VM entries, {} VM exits.",
