@@ -3,8 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nesthost Playground</title>
+<title>Nesthost: a deterministic type-1 hypervisor simulator in pure Rust</title>
+<meta name="description" content="Nesthost by Pavan Nallamothu: a deterministic type-1 hypervisor simulator in pure Rust std with zero dependencies. It runs several guest VMs on one emulated CPU, virtualizes memory through per guest second level page tables, and traps privileged instructions to emulate them. Step through the scheduler, the memory map, and the VM exit log in the browser.">
+<meta name="author" content="Pavan Nallamothu (pavanchow)">
+<link rel="canonical" href="https://pavanchow.github.io/nesthost/">
 <link rel="icon" type="image/svg+xml" href="logo.svg">
+<link rel="author" href="https://github.com/pavanchow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Nesthost: a deterministic type-1 hypervisor simulator in pure Rust">
+<meta property="og:description" content="A small type-1 hypervisor simulator in pure Rust: vCPU scheduling, second level memory translation, trap and emulate, per guest isolation. Step through it in the browser. By Pavan Nallamothu.">
+<meta property="og:url" content="https://pavanchow.github.io/nesthost/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Nesthost: a deterministic type-1 hypervisor simulator in pure Rust">
+<meta name="twitter:description" content="Run guest VMs on one emulated CPU and watch isolation, VM exits, and round robin scheduling, live.">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Nesthost","applicationCategory":"DeveloperApplication","operatingSystem":"Cross-platform","description":"Nesthost is a deterministic type-1 hypervisor simulator written in pure Rust std with zero external dependencies. It runs several guest VMs on one emulated CPU, virtualizes each guest's memory through a per guest second level page table, time slices vCPUs with a bounded round robin, and traps privileged instructions to emulate them.","url":"https://pavanchow.github.io/nesthost/","author":{"@type":"Person","name":"Pavan Nallamothu"},"programmingLanguage":"Rust","codeRepository":"https://github.com/pavanchow/nesthost","license":"https://opensource.org/licenses/MIT"}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Person","name":"Pavan Nallamothu","alternateName":"pavanchow","url":"https://github.com/pavanchow","sameAs":["https://github.com/pavanchow","https://hackerone.com/pavanchow"]}
+</script>
 <style>
   :root {
     --bg: #f5f5f7;
@@ -13,7 +30,8 @@
     --text: #1d1d1f;
     --muted: #6e6e73;
     --line: #d2d2d7;
-    --accent: #0071e3;
+    --accent: #2563eb;
+    --accent-soft: #e7effe;
     --g0: #0071e3;
     --g1: #34c759;
     --g2: #ff9500;
@@ -24,13 +42,14 @@
     --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
   body {
-    margin: 0;
     font-family: var(--sans);
-    background: var(--bg);
+    background: #fff;
     color: var(--text);
-    line-height: 1.5;
+    font-size: 17px;
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
   }
   /* Dark override MUST come after the base body rule and re-declare both the
@@ -43,7 +62,8 @@
       --text: #f5f5f7;
       --muted: #a1a1a6;
       --line: #3a3a3c;
-      --accent: #2997ff;
+      --accent: #5b9dff;
+      --accent-soft: #10233f;
       --g0: #2997ff;
       --g1: #30d158;
       --g2: #ff9f0a;
@@ -51,39 +71,65 @@
       --code-bg: #2c2c2e;
       --shadow: 0 1px 3px rgba(0,0,0,0.5), 0 8px 24px rgba(0,0,0,0.4);
     }
-    body { background: var(--bg); color: var(--text); }
+    body { background: #000; color: var(--text); }
   }
-  .wrap { max-width: 1100px; margin: 0 auto; padding: 40px 20px 80px; }
-  header.hero { text-align: center; margin-bottom: 32px; }
-  h1 { font-size: 44px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 8px; }
-  .tagline { font-size: 21px; color: var(--muted); margin: 0 auto; max-width: 720px; }
-  .framing {
-    font-size: 14px; color: var(--muted); margin: 16px auto 0; max-width: 720px;
-    background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px;
-    padding: 12px 16px;
-  }
-  .repo-link { display: inline-block; margin-top: 16px; color: var(--accent); text-decoration: none; font-weight: 500; }
-  .repo-link:hover { text-decoration: underline; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 28px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { font-family: var(--mono); font-size: .92em; background: var(--code-bg); border-radius: 4px; padding: .1em .4em; }
 
+  nav { position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,.82); backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid var(--line); }
+  @media (prefers-color-scheme: dark) { nav { background: rgba(0,0,0,.72); } }
+  nav .row { display: flex; justify-content: space-between; align-items: center; height: 56px; max-width: 1040px; margin: 0 auto; padding: 0 28px; }
+  nav .brand { display: flex; align-items: center; gap: 9px; font-size: 18px; font-weight: 650; letter-spacing: -.01em; }
+  nav .brand .gem { width: 15px; height: 15px; border-radius: 4px; background: linear-gradient(135deg, #60a5fa, #2563eb); }
+  nav .links { display: flex; gap: 26px; align-items: center; }
+  nav .links a { color: var(--text); font-size: 14.5px; }
+  @media (max-width: 640px) { nav .links a:not(.gh) { display: none; } }
+
+  .hero { padding: 80px 0 30px; text-align: center; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-size: clamp(40px, 7vw, 66px); line-height: 1.05; letter-spacing: -.035em; font-weight: 680; margin: 18px 0 0; text-wrap: balance; }
+  .hero p.sub { max-width: 680px; margin: 24px auto 0; font-size: clamp(17px, 2.1vw, 21px); color: var(--muted); }
+  .cta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 34px; }
+  .btn { display: inline-block; padding: 13px 26px; border-radius: 999px; font-size: 15px; font-weight: 600; border: 1px solid var(--text); color: var(--text); }
+  .btn:hover { opacity: .75; text-decoration: none; }
+  .btn.primary { background: var(--text); color: var(--panel); border-color: var(--text); }
+  @media (prefers-color-scheme: dark) { .btn.primary { color: #000; } }
+
+  .howto { max-width: 680px; margin: 8px auto 0; border: 1px solid var(--line); border-radius: 14px; padding: 2px 18px; background: var(--panel-2); }
+  .howto > summary { cursor: pointer; font-weight: 600; padding: 14px 0; list-style: none; }
+  .howto > summary::-webkit-details-marker { display: none; }
+  .howto > summary::before { content: "\25B8"; display: inline-block; margin-right: 8px; color: var(--accent); transition: transform .15s; }
+  .howto[open] > summary::before { transform: rotate(90deg); }
+  ol.steps { padding-left: 20px; margin: 0 0 8px; }
+  ol.steps li { margin-bottom: 10px; color: var(--muted); }
+  ol.steps b { color: var(--text); }
+  ol.steps code { background: var(--code-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+  .tour { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; margin: 6px 0 16px; }
+  .tour h3 { margin: 0 0 10px; font-size: 15px; }
+
+  .stage { max-width: 1040px; margin: 36px auto 0; padding: 0 20px; }
+  .stage > section.card:first-child { margin-top: 0; }
   section.card {
-    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
-    box-shadow: var(--shadow); padding: 24px; margin: 20px 0;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 22px;
+    box-shadow: 0 24px 60px -34px rgba(37,99,235,.4); padding: 24px; margin: 20px 0;
   }
-  h2 { font-size: 24px; font-weight: 650; letter-spacing: -0.01em; margin: 0 0 4px; }
-  h2 .sub { font-size: 14px; color: var(--muted); font-weight: 400; margin-left: 10px; }
+  section.card h2 { font-size: 22px; font-weight: 650; letter-spacing: -.01em; margin: 0 0 4px; text-align: left; }
+  section.card h2 .sub { font-size: 14px; color: var(--muted); font-weight: 400; margin-left: 10px; }
   h3 { font-size: 16px; font-weight: 600; margin: 0 0 10px; }
   p.note { color: var(--muted); font-size: 14px; margin: 6px 0 18px; }
 
   .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-  button {
+  .controls button {
     font-family: var(--sans); font-size: 15px; font-weight: 500;
     padding: 10px 20px; border-radius: 980px; border: 1px solid transparent;
     background: var(--accent); color: #fff; cursor: pointer; transition: opacity .15s, transform .05s;
   }
-  button:hover { opacity: 0.9; }
-  button:active { transform: scale(0.97); }
-  button.secondary { background: transparent; color: var(--accent); border-color: var(--line); }
-  button:disabled { opacity: 0.4; cursor: default; }
+  .controls button:hover { opacity: 0.9; }
+  .controls button:active { transform: scale(0.97); }
+  .controls button.secondary { background: transparent; color: var(--accent); border-color: var(--line); }
+  .controls button:disabled { opacity: 0.4; cursor: default; }
   .status { margin-left: auto; font-size: 14px; color: var(--muted); font-family: var(--mono); }
 
   .guests { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
@@ -142,32 +188,62 @@
   .exitlog .row.latest { background: color-mix(in srgb, var(--accent) 14%, transparent); }
   .empty { color: var(--muted); font-style: italic; }
 
-  .howto-box summary { cursor: pointer; font-size: 1.25rem; font-weight: 700; margin: 0; }
-  .howto-box[open] summary { margin-bottom: 16px; }
-  ol.howto { padding-left: 20px; margin: 0; }
-  ol.howto li { margin-bottom: 10px; }
-  ol.howto code, p code, td code { font-family: var(--mono); background: var(--code-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
-  .tour { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; margin-top: 16px; }
-  .tour h3 { margin-top: 0; }
-  footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 40px; }
-  footer a { color: var(--accent); text-decoration: none; }
+  section.story { padding: 84px 0; border-top: 1px solid var(--line); }
+  section.story h2 { font-size: clamp(26px, 4.2vw, 38px); line-height: 1.12; letter-spacing: -.025em; font-weight: 660; text-align: center; max-width: 760px; margin: 0 auto; }
+  .lead { max-width: 660px; margin: 18px auto 0; text-align: center; color: var(--muted); }
+  ul.gates { max-width: 660px; margin: 24px auto 0; padding: 0; list-style: none; }
+  ul.gates li { border-top: 1px solid var(--line); padding: 14px 0; color: var(--muted); }
+  ul.gates li b { color: var(--text); font-weight: 600; }
+  pre { background: #15161c; color: #ececf4; border-radius: 14px; padding: 20px 22px; font-family: var(--mono); font-size: 13px; line-height: 1.6; overflow-x: auto; max-width: 760px; margin: 30px auto 0; }
+  pre .cm { color: #8a8d9a; } pre .g { color: #7fd6a0; }
+
+  footer { padding: 60px 0; border-top: 1px solid var(--line); text-align: center; color: var(--muted); }
+  footer .name { color: var(--text); font-weight: 600; }
+  footer p + p { margin-top: 10px; }
+  @media (max-width: 640px) { .hero { padding: 56px 0 24px; } section.story { padding: 60px 0; } section.card { padding: 16px; } }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header class="hero">
-    <img src="logo.svg" alt="Nesthost logo" width="72" height="72">
-    <h1>Nesthost</h1>
-    <p class="tagline">A deterministic type-1 hypervisor simulator you can step through in the browser.</p>
-    <p class="framing">
-      This playground is a teaching accurate model, not a real VMM. There is no hardware, no ring
-      transition, and no host kernel. It shows the real shapes: guest physical to host physical
-      address translation, VM exits on privileged instructions, per guest isolation, and
-      deterministic round robin scheduling.
-    </p>
-    <a class="repo-link" href="https://github.com/pavanchow/nesthost">View the Rust source on GitHub &rsaquo;</a>
-  </header>
+<noscript><div class="wrap" style="padding:40px 28px;color:#6a6d78">Nesthost is a deterministic type-1 hypervisor simulator written in pure Rust std with zero external dependencies by Pavan Nallamothu. It runs several guest VMs on one emulated CPU, virtualizes each guest's memory through a per guest second level page table, time slices vCPUs with a bounded round robin, and traps privileged instructions to emulate them. Source: <a href="https://github.com/pavanchow/nesthost">github.com/pavanchow/nesthost</a>.</div></noscript>
 
+<nav><div class="row">
+  <div class="brand"><span class="gem"></span>Nesthost</div>
+  <div class="links"><a href="#sim">Simulator</a><a href="#proof">Proof</a><a href="#use">Use it</a><a class="gh" href="https://github.com/pavanchow/nesthost">GitHub</a></div>
+</div></nav>
+
+<div class="hero">
+  <img src="logo.svg" alt="Nesthost logo" width="72" height="72">
+  <p class="eyebrow">Rust · type-1 hypervisor, from scratch</p>
+  <h1>Watch a hypervisor<br>keep guests apart.</h1>
+  <p class="sub">Nesthost is a deterministic type-1 hypervisor simulator in pure Rust std, with zero dependencies. It runs several guest VMs on one emulated CPU and models the three jobs a real virtual machine monitor does: time slicing vCPUs with a bounded round robin, translating each guest's memory through its own second level page table, and trapping privileged instructions to emulate them. Step through it in the browser and watch guests stay isolated, a rogue guest fault while leaking nothing, and the VM exit log fill in.</p>
+  <div class="cta-row">
+    <a class="btn primary" href="#sim">Open the simulator</a>
+    <a class="btn" href="https://github.com/pavanchow/nesthost">View on GitHub</a>
+  </div>
+</div>
+
+<details class="howto">
+  <summary>How to use this playground</summary>
+  <ol class="steps">
+    <li><b>Step</b> runs exactly one guest instruction. Watch the active guest card, its registers, and the exit log. When a guest hits <code>Out</code>, a device IO exit appears and one character lands on that guest's console.</li>
+    <li><b>Run</b> plays steps automatically. <b>Pause</b> stops the playback where it is, and <b>Step</b> still works while paused.</li>
+    <li><b>Reset</b> rebuilds the machine from scratch. Because everything is deterministic, a fresh Reset then Run reproduces the identical schedule, exits, and output every time.</li>
+    <li>In the <b>Memory map</b>, notice each host frame is owned by exactly one guest, and the page tables never overlap. That disjointness is what keeps guests isolated.</li>
+    <li>Watch the <b>rogue</b> guest. It writes safely inside its own page, then reads guest address <code>9999</code>, which it has no mapping for. That produces a fault exit in red and stops the guest. It never sees another guest's data.</li>
+  </ol>
+  <div class="tour">
+    <h3>A two minute guided tour</h3>
+    <ol class="steps">
+      <li>Press <b>Reset</b>, then <b>Step</b> a few times. The first guest sets a register, then traps on <code>Out</code>, and a letter appears on its console.</li>
+      <li>Keep stepping. After the quantum the timeline shows the slice ending and the next guest gets the CPU. This is the round robin.</li>
+      <li>When the rogue guest runs, its out of bounds read turns into a red fault in the exit log and its state badge flips to faulted.</li>
+      <li>Press <b>Run</b> to finish. Compare the two printing guests' consoles. They built their strings independently, in isolated memory, while sharing one CPU.</li>
+      <li>Press <b>Reset</b> and <b>Run</b> again. Identical result. That is the determinism gate in action.</li>
+    </ol>
+  </div>
+</details>
+
+<div class="stage" id="sim">
   <section class="card">
     <h2>Live machine <span class="sub">one physical CPU, three guest VMs, quantum of 3 instructions</span></h2>
     <p class="note">Press Step to advance one guest instruction at a time, or Run to let it play out. The whole run is deterministic, so Reset then Run always produces the same schedule, the same exits, and the same output.</p>
@@ -213,34 +289,36 @@
     <p class="note">Every privileged instruction traps here. A console write is a device IO exit, a control register write is a SetCr exit, and reaching unmapped memory is a fault exit. The hypervisor emulates each one, then resumes the guest.</p>
     <div class="exitlog" id="exitlog"><span class="empty">No exits yet.</span></div>
   </section>
-
-  <section class="card">
-    <details class="howto-box">
-    <summary>How to use this playground</summary>
-    <ol class="howto">
-      <li><b>Step</b> runs exactly one guest instruction. Watch the active guest card, its registers, and the exit log. When a guest hits <code>Out</code>, a device IO exit appears and one character lands on that guest's console.</li>
-      <li><b>Run</b> plays steps automatically. <b>Pause</b> stops the playback where it is, and <b>Step</b> still works while paused.</li>
-      <li><b>Reset</b> rebuilds the machine from scratch. Because everything is deterministic, a fresh Reset then Run reproduces the identical schedule, exits, and output every time.</li>
-      <li>In the <b>Memory map</b>, notice each host frame is owned by exactly one guest, and the page tables never overlap. That disjointness is what keeps guests isolated.</li>
-      <li>Watch the <b>rogue</b> guest. It writes safely inside its own page, then reads guest address <code>9999</code>, which it has no mapping for. That produces a fault exit in red and stops the guest. It never sees another guest's data.</li>
-    </ol>
-    <div class="tour">
-      <h3>A two minute guided tour</h3>
-      <ol class="howto">
-        <li>Press <b>Reset</b>, then <b>Step</b> a few times. The first guest sets a register, then traps on <code>Out</code>, and a letter appears on its console.</li>
-        <li>Keep stepping. After the quantum the timeline shows the slice ending and the next guest gets the CPU. This is the round robin.</li>
-        <li>When the rogue guest runs, its out of bounds read turns into a red fault in the exit log and its state badge flips to faulted.</li>
-        <li>Press <b>Run</b> to finish. Compare the two printing guests' consoles. They built their strings independently, in isolated memory, while sharing one CPU.</li>
-        <li>Press <b>Reset</b> and <b>Run</b> again. Identical result. That is the determinism gate in action.</li>
-      </ol>
-    </div>
-    </details>
-  </section>
-
-  <footer>
-    Nesthost is open source. <a href="https://github.com/pavanchow/nesthost">github.com/pavanchow/nesthost</a>
-  </footer>
 </div>
+
+<section class="story" id="proof"><div class="wrap">
+  <h2>It really keeps guests apart</h2>
+  <p class="lead">The playground is a teaching model, but the Rust core proves the same claims for real. The gates live in <code>tests/gates.rs</code>, each proving one property, backed by a bounded stress harness in <code>tests/stress.rs</code> that feeds tens of thousands of malformed programs and asserts no panic, no hang, and that isolation still holds.</p>
+  <ul class="gates">
+    <li><b>Inter guest memory isolation.</b> Over many randomized accesses, a guest only ever reaches host frames mapped into its own space, checked against an independent external owner map. An unmapped access faults instead of leaking.</li>
+    <li><b>Trap and emulate correctness.</b> A privileged instruction always causes a VM exit, never executes in guest context, and resumes the guest with the expected state. A guest cannot bypass the trap.</li>
+    <li><b>Multi guest execution and determinism.</b> Time sliced guests produce correct, isolated outputs, and the whole run is reproducible bit for bit.</li>
+    <li><b>Shared ring device.</b> A guest publishes payloads into its explicitly shared ring frame and rings the doorbell; the host drains them only on the resulting trap, and the shared memory never becomes an inter guest leak.</li>
+  </ul>
+  <pre><span class="cm"># the randomized gates and the stress harness are bounded and controllable</span>
+NESTHOST_FUZZ_OPS=50000 NESTHOST_SEED=1 cargo test
+<span class="g">running gates: isolation, trap_emulate, determinism, shared_ring ... ok</span></pre>
+</div></section>
+
+<section class="story" id="use"><div class="wrap">
+  <h2>Use it</h2>
+  <pre><span class="cm"># run the demo: four guests, the memory map, the schedule, the exit log</span>
+cargo run --release
+
+<span class="cm"># usage, and the full test suite plus the correctness gates</span>
+cargo run --release -- --help
+cargo test</pre>
+</div></section>
+
+<footer><div class="wrap">
+  <p>Nesthost is MIT licensed. Source, tests, and design notes are on <a href="https://github.com/pavanchow/nesthost">GitHub</a>.</p>
+  <p>By <span class="name">Pavan Nallamothu</span>.</p>
+</div></footer>
 
 <script>
 "use strict";
