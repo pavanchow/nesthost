@@ -6,6 +6,7 @@
 <title>Nesthost: a deterministic type-1 hypervisor simulator in pure Rust</title>
 <meta name="description" content="Nesthost by Pavan Nallamothu: a deterministic type-1 hypervisor simulator in pure Rust std with zero dependencies. It runs several guest VMs on one emulated CPU, virtualizes memory through per guest second level page tables, and traps privileged instructions to emulate them. Step through the scheduler, the memory map, and the VM exit log in the browser.">
 <meta name="author" content="Pavan Nallamothu (pavanchow)">
+<meta name="keywords" content="type-1 hypervisor, hypervisor simulator, VMM, virtual machine monitor, vCPU scheduling, second level address translation, SLAT, nested page tables, trap and emulate, VM exit, guest isolation, virtio ring, Rust, KVM, Xen, Pavan Nallamothu, pavanchow">
 <link rel="canonical" href="https://pavanchow.github.io/nesthost/">
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="author" href="https://github.com/pavanchow">
@@ -17,7 +18,7 @@
 <meta name="twitter:title" content="Nesthost: a deterministic type-1 hypervisor simulator in pure Rust">
 <meta name="twitter:description" content="Run guest VMs on one emulated CPU and watch isolation, VM exits, and round robin scheduling, live.">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Nesthost","applicationCategory":"DeveloperApplication","operatingSystem":"Cross-platform","description":"Nesthost is a deterministic type-1 hypervisor simulator written in pure Rust std with zero external dependencies. It runs several guest VMs on one emulated CPU, virtualizes each guest's memory through a per guest second level page table, time slices vCPUs with a bounded round robin, and traps privileged instructions to emulate them.","url":"https://pavanchow.github.io/nesthost/","author":{"@type":"Person","name":"Pavan Nallamothu"},"programmingLanguage":"Rust","codeRepository":"https://github.com/pavanchow/nesthost","license":"https://opensource.org/licenses/MIT"}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Nesthost","applicationCategory":"DeveloperApplication","softwareVersion":"0.1.0","operatingSystem":"Cross-platform","description":"Nesthost is a deterministic type-1 hypervisor simulator written in pure Rust std with zero external dependencies. It runs several guest VMs on one emulated CPU, virtualizes each guest's memory through a per guest second level page table, time slices vCPUs with a bounded round robin, and traps privileged instructions to emulate them.","url":"https://pavanchow.github.io/nesthost/","author":{"@type":"Person","name":"Pavan Nallamothu"},"programmingLanguage":"Rust","codeRepository":"https://github.com/pavanchow/nesthost","license":"https://opensource.org/licenses/MIT"}
 </script>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"Person","name":"Pavan Nallamothu","alternateName":"pavanchow","url":"https://github.com/pavanchow","sameAs":["https://github.com/pavanchow","https://hackerone.com/pavanchow"]}
@@ -201,6 +202,34 @@
   footer .name { color: var(--text); font-weight: 600; }
   footer p + p { margin-top: 10px; }
   @media (max-width: 640px) { .hero { padding: 56px 0 24px; } section.story { padding: 60px 0; } section.card { padding: 16px; } }
+
+  nav .v { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+
+  .statband { display: flex; flex-wrap: wrap; gap: 18px 40px; margin-top: 18px; padding: 18px 20px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 14px; }
+  .statband div { display: flex; flex-direction: column; }
+  .statband .n { font-size: 26px; font-weight: 680; letter-spacing: -.02em; }
+  .statband .k { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
+  .caption { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 12px; }
+
+  .snip { max-width: 760px; margin: 30px auto 0; background: #15161c; color: #ececf4; border-radius: 14px; padding: 20px 22px; font-family: var(--mono); font-size: 12.5px; line-height: 1.7; overflow-x: auto; white-space: pre; }
+  .snip .cm { color: #8a8d9a; } .snip .g { color: #7fd6a0; } .snip .r { color: #ff8a80; font-weight: 600; } .snip .a { color: #79b8ff; } .snip .m { color: #8a8d9a; }
+
+  .rows { max-width: 820px; margin: 34px auto 0; }
+  .rows .r { display: grid; grid-template-columns: minmax(150px, 1fr) 2fr; gap: 12px 36px; padding: 22px 0; border-top: 1px solid var(--line); }
+  .rows .r:first-child { border-top: none; }
+  .rows .r b { font-size: 17px; } .rows .r p { color: var(--muted); }
+  @media (max-width: 640px) { .rows .r { grid-template-columns: 1fr; gap: 6px; } }
+
+  .pgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; max-width: 900px; margin: 40px auto 0; }
+  @media (max-width: 640px) { .pgrid { grid-template-columns: 1fr; } }
+  .pcard { background: var(--panel-2); border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
+  .pcard h3 { font-family: var(--mono); font-size: 14.5px; margin: 0 0 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pcard p { color: var(--muted); font-size: 14.5px; }
+  .tag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: .04em; }
+  .tag.sched { background: var(--accent-soft); color: var(--accent); }
+  .tag.mem { background: color-mix(in srgb, var(--g1) 18%, transparent); color: var(--g1); }
+  .tag.trap { background: color-mix(in srgb, var(--g2) 20%, transparent); color: var(--g2); }
+  .tag.safe { background: color-mix(in srgb, var(--fault) 16%, transparent); color: var(--fault); }
 </style>
 </head>
 <body>
@@ -208,7 +237,7 @@
 
 <nav><div class="row">
   <div class="brand"><img src="logo.svg" class="brandlogo" alt="" width="22" height="22">Nesthost</div>
-  <div class="links"><a href="#sim">Simulator</a><a href="#proof">Proof</a><a href="#use">Use it</a><a class="gh" href="https://github.com/pavanchow/nesthost">GitHub</a></div>
+  <div class="links"><a href="#sim">Simulator</a><a href="#differs">Compare</a><a href="#primitives">Primitives</a><a href="#proof">Proof</a><a href="#use">Use it</a><a class="gh" href="https://github.com/pavanchow/nesthost">GitHub</a><span class="v">v0.1.0</span></div>
 </div></nav>
 
 <div class="hero">
@@ -254,6 +283,13 @@
       <button id="btnReset" class="secondary">Reset</button>
       <span class="status" id="status"></span>
     </div>
+    <div class="statband">
+      <div><span class="n">3</span><span class="k">guest VMs</span></div>
+      <div><span class="n">1</span><span class="k">physical CPU</span></div>
+      <div><span class="n">3</span><span class="k">instr quantum</span></div>
+      <div><span class="n">0</span><span class="k">dependencies</span></div>
+    </div>
+    <p class="caption">the machine the playground builds: three guest vCPUs time sliced across one CPU, the same shape the Rust core runs. the status line above updates live as you step.</p>
   </section>
 
   <section class="card">
@@ -291,6 +327,56 @@
   </section>
 </div>
 
+<section class="story" id="transcript"><div class="wrap">
+  <h2>One command, the whole machine on screen</h2>
+  <p class="lead">The demo boots four guests on one CPU, prints the memory map and the round robin schedule, then the VM exit log where every privileged instruction traps. A rogue guest reaches an unmapped address and faults, leaking nothing. This is a real, trimmed run.</p>
+  <div class="snip"><span class="cm">$ cargo run --release</span>
+== Nesthost: deterministic type-1 hypervisor simulator ==
+Booting 4 guests on 1 physical CPU.
+
+<span class="cm">VM exit log (trap and emulate):</span>
+  tick   1  guest 2 "rogue"   pc  4  <span class="r">MemFault { gpa: 9999, access: Read, kind: Unmapped }</span>
+  tick   2  guest 0 "hello"   pc 18  <span class="a">DeviceIo { port: 0, value: 72 }</span>
+  tick   3  guest 3 "ringer"  pc 19  <span class="a">DeviceIo { port: 208, value: 0 }</span>
+  tick   4  guest 3 "ringer"  pc 20  <span class="m">Halt</span>
+  tick  16  guest 1 "world"   pc 24  <span class="m">Halt</span>
+
+<span class="cm">Per guest console output (isolated buffers):</span>
+  guest 0 "hello"   state Halted   io_exits 5  faults 0  output: "Hello"
+  guest 1 "world"   state Halted   io_exits 6  faults 0  output: "world!"
+  guest 2 "rogue"   state Faulted  io_exits 0  faults 1  output: ""
+  guest 3 "ringer"  state Halted   io_exits 1  faults 0  output: ""
+
+<span class="cm">Shared ring device (guest to host, via doorbell trap):</span>
+  guest 3 drained 5 entries, host received: "ring!"
+
+<span class="g">Totals: 12 scheduler rounds, 29 VM entries, 16 VM exits.</span>
+Isolation holds: guest "rogue" faulted reaching an unmapped GPA and leaked nothing.</div>
+</div></section>
+
+<section class="story" id="differs"><div class="wrap">
+  <h2>How it relates to a real hypervisor</h2>
+  <p class="lead">Nesthost is a teaching accurate model, not a production VMM. There is no hardware, no VT-x or AMD-V, no host kernel. What it keeps is the shape of the three jobs a real monitor does, small enough to read in an afternoon.</p>
+  <div class="rows">
+    <div class="r"><b>KVM, Xen, VMware ESXi</b><p>Real type-1 hypervisors. They run guests on real CPUs with hardware assisted virtualization, and their core ideas are buried under hardware interfaces, drivers, and performance work.</p></div>
+    <div class="r"><b>Small CPU emulators</b><p>Usually model one CPU running one program. They do not nest many guests under one monitor, so the parts that make virtualization interesting are absent.</p></div>
+    <div class="r"><b>Nesthost</b><p>The readable middle. Every mechanism is a plain Rust data structure: second level address translation, VM exits and entries on privileged instructions, per guest isolation, and deterministic time slicing. You can run every claim as a test.</p></div>
+  </div>
+</div></section>
+
+<section class="story" id="primitives"><div class="wrap">
+  <p class="eyebrow" style="text-align:center">The mechanisms it models</p>
+  <h2 style="margin-top:14px">The parts that make a hypervisor a hypervisor</h2>
+  <div class="pgrid">
+    <div class="pcard"><h3><span class="tag sched">scheduler</span> vCPU scheduling</h3><p>One physical CPU is time sliced across guest vCPUs with a deterministic round robin, bounded by a round budget so a guest that never halts cannot hang the host.</p></div>
+    <div class="pcard"><h3><span class="tag mem">memory</span> Second level translation</h3><p>Each guest has its own guest physical address space. A per guest page table maps GPA to HPA, so a guest can only reach host frames mapped into its own space.</p></div>
+    <div class="pcard"><h3><span class="tag trap">trap</span> Trap and emulate</h3><p>A privileged instruction does not run in guest context. It takes a VM exit to the hypervisor, which emulates the effect and resumes the guest with a VM entry.</p></div>
+    <div class="pcard"><h3><span class="tag trap">exit</span> VM exits and entries</h3><p>Device IO, control register writes, halts, and memory faults each surface as a typed exit reason the host handles, then the guest is re-entered.</p></div>
+    <div class="pcard"><h3><span class="tag mem">device</span> Shared ring device</h3><p>A virtio style shared memory ring lets one guest hand payloads to the host through a single explicitly shared frame, drained only on a doorbell trap.</p></div>
+    <div class="pcard"><h3><span class="tag safe">gate</span> The correctness gates</h3><p>Isolation, trap and emulate, determinism, and the shared ring are each proven in tests/gates.rs, backed by a stress harness that feeds tens of thousands of malformed programs.</p></div>
+  </div>
+</div></section>
+
 <section class="story" id="proof"><div class="wrap">
   <h2>It really keeps guests apart</h2>
   <p class="lead">The playground is a teaching model, but the Rust core proves the same claims for real. The gates live in <code>tests/gates.rs</code>, each proving one property, backed by a bounded stress harness in <code>tests/stress.rs</code> that feeds tens of thousands of malformed programs and asserts no panic, no hang, and that isolation still holds.</p>
@@ -307,6 +393,12 @@ NESTHOST_FUZZ_OPS=50000 NESTHOST_SEED=1 cargo test
 
 <section class="story" id="use"><div class="wrap">
   <h2>Use it</h2>
+  <p class="lead">Nesthost is a library plus a small binary, pure Rust std with zero dependencies. Drive it from your own code or run the demo.</p>
+  <div class="rows">
+    <div class="r"><b>Library</b><p>Build a <code>Hypervisor</code>, add guests with disjoint frames, opt in to a shared frame or a ring, then <code>run()</code>. <code>PageTable::translate</code> is the only path a guest has to host memory.</p></div>
+    <div class="r"><b>CLI binary</b><p><code>cargo run --release</code> boots the demo; <code>--help</code> prints usage. The whole run is deterministic, so it reproduces bit for bit.</p></div>
+    <div class="r"><b>Gates and stress</b><p><code>cargo test</code> runs the correctness gates in <code>tests/gates.rs</code> and the bounded fuzz stress in <code>tests/stress.rs</code>, tunable through <code>NESTHOST_FUZZ_OPS</code> and <code>NESTHOST_SEED</code>.</p></div>
+  </div>
   <pre><span class="cm"># run the demo: four guests, the memory map, the schedule, the exit log</span>
 cargo run --release
 
