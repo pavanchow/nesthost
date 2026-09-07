@@ -1,3 +1,5 @@
+<img src="docs/logo.svg" alt="Nesthost logo" width="96">
+
 # Nesthost
 
 Nesthost is a deterministic type-1 hypervisor simulator written in pure Rust std, with zero external dependencies.
