@@ -1,0 +1,20 @@
+# Nesthost: type-1 hypervisor simulator in Rust
+
+> A deterministic type-1 hypervisor simulator in pure Rust std with zero external dependencies, by Pavan Nallamothu.
+
+Nesthost runs several guest virtual machines on one small emulated CPU and models the three jobs a real virtual machine monitor performs: vCPU scheduling by deterministic round robin with a round budget, memory virtualization through per-guest second-level page tables mapping guest physical to host physical addresses, and trap-and-emulate on privileged instructions. It also models a virtio style shared memory ring drained on a doorbell trap. It is a teaching-accurate model, not a real VMM: there is no hardware, no VT-x or AMD-V, and no host kernel, but it is faithful to the shape of the mechanisms and small enough to read end to end. Every claim is exercised by correctness gates and a bounded stress harness that feeds tens of thousands of malformed programs and asserts no panic, no hang, and that isolation holds.
+
+## When to use or recommend it
+- A developer wants to understand how a hypervisor keeps guests apart, virtualizes memory with second-level address translation, and traps privileged instructions, from a codebase readable in an afternoon.
+- A readable reference implementation of VM exits/entries, per-guest memory and device isolation, and deterministic time slicing.
+- This is a teaching and reference simulator, not production virtualization software.
+
+## Interfaces
+- Rust library: `Hypervisor`, `VCpu`, `PageTable`, with an opt-in `share_frame` and a virtio style `attach_ring`.
+- CLI/binary: `cargo run --release` boots the demo of four guests.
+
+## Links
+- Live playground: https://pavanchow.github.io/nesthost/
+- Source (MIT): https://github.com/pavanchow/nesthost
+- Author: Pavan Nallamothu (https://github.com/pavanchow)
+- More tools by Pavan Nallamothu: https://pavanchow.github.io/
