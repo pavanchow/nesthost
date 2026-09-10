@@ -6,6 +6,8 @@ Nesthost is a deterministic type-1 hypervisor simulator written in pure Rust std
 
 **[Live demo](https://pavanchow.github.io/nesthost/)** · MIT licensed · pure Rust
 
+Built from scratch by [Pavan Nallamothu](https://pavanchow.github.io/) ([LinkedIn](https://www.linkedin.com/in/pavanchow/), [GitHub](https://github.com/pavanchow)).
+
 It runs several guest virtual machines on one small emulated CPU and models the three jobs a real virtual machine monitor performs:
 
 - vCPU scheduling. A single physical CPU is time sliced across guest vCPUs with a deterministic round robin, bounded by a round budget so a guest that never halts cannot hang the host.
